@@ -1,0 +1,33 @@
+---
+# ──────────────────────────────────────────────
+# Global deployment variables
+# ──────────────────────────────────────────────
+
+# Ports
+api_port: 8000
+
+# Installation directory on the server
+app_dir: /opt/rag-llamaindex
+
+# EBS volume — device mapped by AWS on Graviton
+ebs_device: /dev/nvme1n1     # NVMe sur instances Nitro (t4g)
+ebs_mount_point: /data
+
+# Application user (matches the raguser in the Dockerfile)
+app_user: raguser
+app_uid: 1001
+
+# Docker Compose plugin version (built into Docker Engine >= 24)
+docker_compose_version: "v2"
+
+# Ollama model to pre-download
+ollama_model: "llama3.2:1b"
+
+# Embed model (HuggingFace)
+embed_model: "intfloat/multilingual-e5-small"
+
+# LLM settings
+llm_temperature: "0.1"
+chunk_size: "512"
+chunk_overlap: "64"
+workers: "4"

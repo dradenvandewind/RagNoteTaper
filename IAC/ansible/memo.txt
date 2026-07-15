@@ -1,0 +1,2 @@
+ansible-playbook site.yml --tags system    # Base + EBS mount
+ansible-playbook site.yml --tags app       # docker compose up
