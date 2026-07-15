@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Console — Live Transcription &amp; Translation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="console">
+<header class="console__header">
+<div class="brand">
+<span class="brand__mark">◉</span>
+<div class="brand__text">
+<h1>Transcription Console</h1>
+<p>Whisper &rarr; Qwen &middot; FR &rarr; EN &middot; real-time</p>
+</div>
+</div>
+<div class="status" id="status-badge">
+<span class="status__dot" id="status-dot"></span>
+<span id="status-text">Stopped</span>
+</div>
+</header>
+
+<section class="deck">
+<div class="deck__meter">
+<canvas id="meter" width="800" height="48"></canvas>
+</div>
+<div class="deck__controls">
+<button id="start-btn" class="btn btn--start">Start listening</button>
+<button id="stop-btn" class="btn btn--stop" disabled>Stop</button>
+<span class="deck__hint">5s chunks &middot; browser mic capture</span>
+</div>
+</section>
+
+<section class="channels">
+<article class="channel channel--fr">
+<header class="channel__header">
+<span class="channel__tag">FR</span>
+<h2>Transcription</h2>
+</header>
+<div class="channel__body" id="transcript"></div>
+</article>
+
+<article class="channel channel--en">
+<header class="channel__header">
+<span class="channel__tag">EN</span>
+<h2>Translation</h2>
+</header>
+<div class="channel__body" id="translation"></div>
+</article>
+</section>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
