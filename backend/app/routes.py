@@ -36,3 +36,10 @@ async def ws_transcribe(websocket: WebSocket):
                 await websocket.send_json({"error": str(e)})
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
+
+@router.websocket("/ws/transcribe")
+async def websocket_transcribe(websocket: WebSocket):
+    await websocket.accept()
+    while True:
+        data = await websocket.receive_bytes()
+        # décoder webm -> pcm, puis transcrire
