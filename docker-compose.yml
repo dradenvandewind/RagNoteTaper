@@ -1,0 +1,39 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "ollama serve & sleep 3 && ollama pull ${QWEN_MODEL:-qwen2.5:3b} && wait"
+
+  rag-api:
+    build: ./backend
+    container_name: rag-llamaindex
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - QWEN_MODEL=${QWEN_MODEL:-qwen2.5:3b}
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - SOURCE_LANG=${SOURCE_LANG:-fr}
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: transcript-nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
