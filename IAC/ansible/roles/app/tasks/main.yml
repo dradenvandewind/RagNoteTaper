@@ -140,7 +140,7 @@
 
 - name: Wait for API to be healthy
   uri:
-    url: "http://localhost:{{ api_port }}/health"
+    url: "http://localhost:{{ api_port }}/api/health"
     method: GET
     status_code: 200
   register: health_result
@@ -149,7 +149,7 @@
   until: health_result.status == 200
   delegate_to: "{{ inventory_hostname }}"
   become: false
-  
+    
 - name: Show health response
   debug:
     var: health_result.json
