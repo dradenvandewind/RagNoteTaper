@@ -23,6 +23,8 @@ services:
   rag-api:
     build: ./backend
     container_name: rag-llamaindex
+    ports:
+      - "8000:8000"
     deploy:
       resources:
         reservations:
