@@ -1,10 +1,10 @@
 FROM python:3.11-slim
 
-RUN printf '%s\n' \
-'deb http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse' \
-'deb http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse' \
-'deb http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse' \
-> /etc/apt/sources.list
+# RUN printf '%s\n' \
+# 'deb http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse' \
+# 'deb http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse' \
+# 'deb http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse' \
+# > /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
