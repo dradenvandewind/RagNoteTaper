@@ -13,7 +13,7 @@ class PCMCaptureProcessor extends AudioWorkletProcessor {
   process(inputs) {
     const input = inputs[0];
     if (!input || input.length === 0) return true;
-    const GAIN = 2.0;
+    const GAIN = 1.0;
 
     const channelData = input[0]; // mono
     for (let i = 0; i < channelData.length; i++) {
