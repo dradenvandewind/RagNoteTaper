@@ -60,7 +60,8 @@ class StreamSession:
         if rms < SILENCE_RMS_THRESHOLD:
             self._silence_s += frame_duration
         else:
-            self._silence_s = 0.0
+            if rms > SILENCE_RMS_THRESHOLD * 1.5:
+                self._silence_s = 0.0
             self._has_speech = True
         logger.info("silence_s=%.3f rms=%.5f threshold=%.5f", self._silence_s, rms, SILENCE_RMS_THRESHOLD)
 
