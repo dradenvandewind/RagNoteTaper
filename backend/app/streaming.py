@@ -19,6 +19,7 @@ MAX_BUFFER_S = 30.0             # safety cap so a stuck session can't grow forev
 MAX_BUFFER_BEFORE_FORCE_FINALIZE_S = 8.0
 
 MIN_SPEECH_FRAMES = 3
+PARTIAL_WINDOW_S = 4.0 
 
 
 
@@ -125,10 +126,34 @@ class StreamSession:
         async with model_lock:
             return await asyncio.to_thread(_run)
 
+    # async def emit_partial(self) -> str:
+    #     self._last_partial_at = time.monotonic()
+    #     try:
+    #         return await self._transcribe_current()
+    #     except Exception:
+    #         logger.exception("Partial transcription failed")
+    #         return ""
+    PARTIAL_WINDOW_S = 4.0  # ne regarder que les 4 dernières secondes pour un partial
+
     async def emit_partial(self) -> str:
         self._last_partial_at = time.monotonic()
         try:
-            return await self._transcribe_current()
+            window_samples = int(PARTIAL_WINDOW_S * self.sample_rate)
+            audio_window = self._buffer[-window_samples:]
+            audio_16k = _resample(audio_window, self.sample_rate, TARGET_SR)
+
+            def _run() -> str:
+                segments, _ = model.transcribe(
+                    audio_16k,
+                    language=SOURCE_LANG,
+                    vad_filter=True,
+                     beam_size=1,
+                    condition_on_previous_text=False,
+                    vad_parameters=dict(threshold=0.2, min_silence_duration_ms=500))
+                return " ".join(seg.text.strip() for seg in segments).strip()
+
+            async with model_lock:
+                return await asyncio.to_thread(_run)
         except Exception:
             logger.exception("Partial transcription failed")
             return ""
