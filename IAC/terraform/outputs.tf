@@ -29,6 +29,11 @@ output "ssh_command" {
   value       = "ssh -i ${var.ssh_private_key_path} ubuntu@${aws_eip.rag_server.public_ip}"
 }
 
+output "ssh_redirect_localhost_command" {
+  description = "SSH command to redirect localhost to the instance"
+  value       = "ssh -L 8080:localhost:8080 ubuntu@${aws_eip.rag_server.public_ip}"
+}
+
 
 output "ami_used" {
   description = "DLAMI ARM64 AMI ID (via SSM)"
