@@ -7,20 +7,13 @@ const translationEl = document.getElementById('translation');
 const meterCanvas = document.getElementById('meter');
 const meterCtx = meterCanvas.getContext('2d');
 
-// Duration of each recorded chunk. Each chunk must be a complete, self-contained
-// WebM file (see startNewChunkRecorder), so this also drives ffmpeg/Whisper call
-// frequency. 3s is a reasonable trade-off between latency and per-chunk overhead.
-const CHUNK_DURATION_MS = 3000;
-
-let mediaRecorder;
 let ws;
 let stream;
 let audioCtx;
 let analyser;
+let workletNode;
 let meterRAF;
-let chunkInterval;
-let mimeType;
-let recording = false;
+let partialP = null; // <p> currently showing the live, not-yet-final transcript
 
 function wsUrl() {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -38,6 +31,29 @@ function appendLine(el, text) {
   p.textContent = text;
   el.appendChild(p);
   el.scrollTop = el.scrollHeight;
+}
+
+// Shows/updates the live, not-yet-committed transcript as a single line that
+// gets replaced on every "partial" message from the server.
+function updatePartialLine(el, text) {
+  if (!text) return;
+  if (!partialP) {
+    partialP = document.createElement('p');
+    partialP.classList.add('partial');
+    el.appendChild(partialP);
+  }
+  partialP.textContent = text;
+  el.scrollTop = el.scrollHeight;
+}
+
+// Called when the server sends a "final" result: drop the partial line and
+// append the committed one in its place.
+function commitPartialLine(el, text) {
+  if (partialP) {
+    partialP.remove();
+    partialP = null;
+  }
+  appendLine(el, text);
 }
 
 function drawMeter() {
@@ -71,45 +87,32 @@ function stopMeter() {
   meterCtx.clearRect(0, 0, meterCanvas.width, meterCanvas.height);
 }
 
-// Records exactly one complete, independently decodable WebM file.
-// MediaRecorder only writes valid EBML/WebM headers at the start of a
-// recording, so timeslice-based chunking on a single continuous recorder
-// produces fragments ffmpeg can't parse on their own. Instead we start a
-// fresh MediaRecorder for every chunk and let it finish naturally via stop().
-function startNewChunkRecorder() {
-  mediaRecorder = new MediaRecorder(stream, { mimeType });
-
-  mediaRecorder.ondataavailable = (e) => {
-    if (e.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
-      e.data.arrayBuffer().then((buf) => ws.send(buf));
-    }
-  };
-
-  mediaRecorder.start();
-}
-
-function restartChunkRecorder() {
-  if (!recording) return;
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
-  }
-  startNewChunkRecorder();
-}
-
 startBtn.addEventListener('click', async () => {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (err) {
-    setStatus("Microphone denied or unavailable", false);
+    setStatus('Microphone denied or unavailable', false);
     return;
   }
 
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   const source = audioCtx.createMediaStreamSource(stream);
+
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 256;
   source.connect(analyser);
   drawMeter();
+
+  try {
+    await audioCtx.audioWorklet.addModule('audio-worklet-processor.js');
+  } catch (err) {
+    setStatus('Failed to load audio processor', false);
+    return;
+  }
+  workletNode = new AudioWorkletNode(audioCtx, 'pcm-capture-processor');
+  source.connect(workletNode);
+  // Not connected to audioCtx.destination: we only need the raw samples,
+  // not playback.
 
   ws = new WebSocket(wsUrl());
   ws.binaryType = 'arraybuffer';
@@ -117,13 +120,15 @@ startBtn.addEventListener('click', async () => {
   ws.onopen = () => {
     setStatus('Connected — listening', true);
 
-    mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? 'audio/webm;codecs=opus'
-      : 'audio/webm';
+    // Handshake: tell the server the native sample rate of this stream so it
+    // can resample correctly before feeding audio to Whisper.
+    ws.send(JSON.stringify({ sampleRate: audioCtx.sampleRate }));
 
-    recording = true;
-    startNewChunkRecorder();
-    chunkInterval = setInterval(restartChunkRecorder, CHUNK_DURATION_MS);
+    workletNode.port.onmessage = (event) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(event.data); // raw Int16 PCM ArrayBuffer
+      }
+    };
 
     startBtn.disabled = true;
     stopBtn.disabled = false;
@@ -136,12 +141,18 @@ startBtn.addEventListener('click', async () => {
     } catch {
       return;
     }
+
     if (data.error) {
       setStatus(`Error: ${data.error}`, false);
       return;
     }
-    appendLine(transcriptEl, data.transcription);
-    appendLine(translationEl, data.translation);
+
+    if (data.type === 'partial') {
+      updatePartialLine(transcriptEl, data.transcription);
+    } else if (data.type === 'final') {
+      commitPartialLine(transcriptEl, data.transcription);
+      appendLine(translationEl, data.translation);
+    }
   };
 
   ws.onerror = () => setStatus('WebSocket error', false);
@@ -154,13 +165,10 @@ startBtn.addEventListener('click', async () => {
 });
 
 stopBtn.addEventListener('click', () => {
-  recording = false;
-  if (chunkInterval) {
-    clearInterval(chunkInterval);
-    chunkInterval = null;
-  }
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
+  if (workletNode) {
+    workletNode.port.onmessage = null;
+    workletNode.disconnect();
+    workletNode = null;
   }
   if (stream) {
     stream.getTracks().forEach((t) => t.stop());

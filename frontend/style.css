@@ -214,3 +214,9 @@ html, body {
   color: var(--ink-dim);
   font-style: italic;
 }
+
+.channel__body p.partial {
+  color: var(--ink-dim);
+  font-style: italic;
+  border-bottom-style: dotted;
+}

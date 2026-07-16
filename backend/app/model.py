@@ -1,3 +1,5 @@
+import asyncio
+
 import ctranslate2
 from faster_whisper import WhisperModel
 
@@ -21,3 +23,10 @@ DEVICE, COMPUTE_TYPE = get_device_and_compute_type()
 logger.info("Whisper model=%s device=%s compute_type=%s", WHISPER_MODEL, DEVICE, COMPUTE_TYPE)
 
 model = WhisperModel(WHISPER_MODEL, device=DEVICE, compute_type=COMPUTE_TYPE)
+
+# faster-whisper's WhisperModel isn't guaranteed thread-safe for concurrent
+# inference calls. Both the one-shot pipeline (audio.py) and the streaming
+# sessions (streaming.py) run transcription in worker threads via
+# asyncio.to_thread; this lock serializes access to `model.transcribe`
+# across all of them so overlapping requests never run concurrently.
+model_lock = asyncio.Lock()

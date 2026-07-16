@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .config import SOURCE_LANG
-from .model import model
+from .model import model, model_lock
 
 
 @contextmanager
@@ -58,5 +58,10 @@ async def convert_to_wav(input_bytes: bytes, input_suffix: str = ".webm") -> Pat
 
 
 async def transcribe_wav(wav_path: Path, language: str = SOURCE_LANG) -> str:
-    """Async wrapper: runs the blocking Whisper inference in a worker thread."""
-    return await asyncio.to_thread(_transcribe_wav_sync, wav_path, language)
+    """Async wrapper: runs the blocking Whisper inference in a worker thread.
+
+    Serialized via model_lock, shared with streaming.py, since concurrent
+    inference calls on the same WhisperModel instance aren't guaranteed safe.
+    """
+    async with model_lock:
+        return await asyncio.to_thread(_transcribe_wav_sync, wav_path, language)
