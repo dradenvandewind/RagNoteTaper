@@ -11,10 +11,13 @@ TARGET_SR = 16000
 
 PARTIAL_INTERVAL_S = 1.0        # minimum time between two "partial" transcriptions
 MIN_AUDIO_FOR_PARTIAL_S = 1.0   # don't bother transcribing a near-empty buffer
-SILENCE_RMS_THRESHOLD = 0.005    # tune based on mic gain / noise floor
+SILENCE_RMS_THRESHOLD = 0.01    # tune based on mic gain / noise floor
 SILENCE_DURATION_S = 0.7        # silence needed to consider an utterance finished
 MAX_BUFFER_S = 30.0             # safety cap so a stuck session can't grow forever
 MAX_BUFFER_BEFORE_FORCE_FINALIZE_S = 8.0
+
+MIN_SPEECH_FRAMES = 3
+
 
 
 def _resample(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
@@ -47,6 +50,7 @@ class StreamSession:
         self._silence_s = 0.0
         self._has_speech = False
         self._last_partial_at = 0.0
+        self._consecutive_speech_frames = 0
 
     def add_frame(self, pcm_int16: np.ndarray) -> None:
         audio = pcm_int16.astype(np.float32) / 32768.0
@@ -59,10 +63,12 @@ class StreamSession:
 
         if rms < SILENCE_RMS_THRESHOLD:
             self._silence_s += frame_duration
+            self._consecutive_speech_frames = 0
         else:
-            if rms > SILENCE_RMS_THRESHOLD * 1.5:
-                self._silence_s = 0.0
-            self._has_speech = True
+            self._silence_s = 0.0
+            self._consecutive_speech_frames += 1
+            if self._consecutive_speech_frames >= MIN_SPEECH_FRAMES:
+                self._has_speech = True
         logger.info("silence_s=%.3f rms=%.5f threshold=%.5f", self._silence_s, rms, SILENCE_RMS_THRESHOLD)
 
         max_samples = int(MAX_BUFFER_S * self.sample_rate)
