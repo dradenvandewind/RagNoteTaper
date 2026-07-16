@@ -14,6 +14,7 @@ MIN_AUDIO_FOR_PARTIAL_S = 1.0   # don't bother transcribing a near-empty buffer
 SILENCE_RMS_THRESHOLD = 0.005    # tune based on mic gain / noise floor
 SILENCE_DURATION_S = 0.7        # silence needed to consider an utterance finished
 MAX_BUFFER_S = 30.0             # safety cap so a stuck session can't grow forever
+MAX_BUFFER_BEFORE_FORCE_FINALIZE_S = 8.0
 
 
 def _resample(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
@@ -61,6 +62,7 @@ class StreamSession:
         else:
             self._silence_s = 0.0
             self._has_speech = True
+        logger.info("silence_s=%.3f rms=%.5f threshold=%.5f", self._silence_s, rms, SILENCE_RMS_THRESHOLD)
 
         max_samples = int(MAX_BUFFER_S * self.sample_rate)
         if self._buffer.shape[0] > max_samples:
@@ -79,7 +81,14 @@ class StreamSession:
         )
 
     def should_finalize(self) -> bool:
-        return self._has_speech and self._silence_s >= SILENCE_DURATION_S
+        natural = self._has_speech and self._silence_s >= SILENCE_DURATION_S
+        forced = self._has_speech and self.buffer_duration_s >= MAX_BUFFER_BEFORE_FORCE_FINALIZE_S
+        if natural or forced:
+            logger.info(
+                "finalize triggered (natural=%s forced=%s) silence_s=%.3f buffer_s=%.3f",
+                natural, forced, self._silence_s, self.buffer_duration_s,
+            )
+        return natural or forced
 
     def reset(self) -> None:
         self._buffer = np.empty(0, dtype=np.float32)
@@ -108,7 +117,21 @@ class StreamSession:
             return ""
 
     async def emit_final(self) -> dict[str, str]:
-        text_fr = await self._transcribe_current()
-        text_en = await translate_text(text_fr) if text_fr else ""
+        try:
+            text_fr = await self._transcribe_current()
+        except Exception:
+            logger.exception("Final transcription failed")
+            text_fr = ""
+
+        text_en = ""
+        if text_fr:
+            try:
+                text_en = await translate_text(text_fr)
+            except Exception:
+                logger.exception("Translation failed; sending transcription without translation")
+
+        # Always clear the buffer, even if transcription/translation failed,
+        # otherwise should_finalize() keeps firing on every subsequent frame
+        # and the session gets stuck retrying the same (growing) buffer.
         self.reset()
         return {"transcription": text_fr, "translation": text_en}
