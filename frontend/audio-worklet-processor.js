@@ -13,11 +13,11 @@ class PCMCaptureProcessor extends AudioWorkletProcessor {
   process(inputs) {
     const input = inputs[0];
     if (!input || input.length === 0) return true;
+    const GAIN = 2.0;
 
     const channelData = input[0]; // mono
     for (let i = 0; i < channelData.length; i++) {
-      this.buffer[this.offset++] = channelData[i];
-
+          this.buffer[this.offset++] = Math.max(-1, Math.min(1, channelData[i] * GAIN));
       if (this.offset === this.frameSize) {
         const pcm16 = new Int16Array(this.frameSize);
         for (let j = 0; j < this.frameSize; j++) {

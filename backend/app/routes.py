@@ -58,17 +58,23 @@ async def ws_transcribe(websocket: WebSocket):
             pcm_int16 = np.frombuffer(frame_bytes, dtype=np.int16)
             session.add_frame(pcm_int16)
 
-            try:
-                if session.should_finalize():
+            if session.should_finalize():
+                try:
                     result = await session.emit_final()
-                    if result["transcription"]:
-                        await websocket.send_json({"type": "final", **result})
-                elif session.should_emit_partial():
+                except Exception:
+                    logger.exception("Final transcription failed")
+                    continue
+                if result["transcription"]:
+                    await websocket.send_json({"type": "final", **result})
+            elif session.should_emit_partial():
+                try:
                     text = await session.emit_partial()
-                    if text:
-                        await websocket.send_json({"type": "partial", "transcription": text})
-            except Exception as e:
-                logger.exception("Error while processing streamed audio")
-                await websocket.send_json({"error": str(e)})
+                except Exception:
+                    logger.exception("Partial transcription failed")
+                    continue
+                if text:
+                    await websocket.send_json({"type": "partial", "transcription": text})
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
+    except Exception:
+        logger.exception("Streaming session crashed unexpectedly")

@@ -12,6 +12,7 @@ let stream;
 let audioCtx;
 let analyser;
 let workletNode;
+let silentGain;
 let meterRAF;
 let partialP = null; // <p> currently showing the live, not-yet-final transcript
 
@@ -111,8 +112,15 @@ startBtn.addEventListener('click', async () => {
   }
   workletNode = new AudioWorkletNode(audioCtx, 'pcm-capture-processor');
   source.connect(workletNode);
-  // Not connected to audioCtx.destination: we only need the raw samples,
-  // not playback.
+
+  // Keep the audio graph "live" so the browser doesn't throttle or stall
+  // worklet processing (this happens if the node has no path to the
+  // destination). Route through a silent gain so the mic isn't echoed
+  // back out of the speakers.
+  silentGain = audioCtx.createGain();
+  silentGain.gain.value = 0;
+  workletNode.connect(silentGain);
+  silentGain.connect(audioCtx.destination);
 
   ws = new WebSocket(wsUrl());
   ws.binaryType = 'arraybuffer';
@@ -169,6 +177,10 @@ stopBtn.addEventListener('click', () => {
     workletNode.port.onmessage = null;
     workletNode.disconnect();
     workletNode = null;
+  }
+  if (silentGain) {
+    silentGain.disconnect();
+    silentGain = null;
   }
   if (stream) {
     stream.getTracks().forEach((t) => t.stop());

@@ -11,7 +11,7 @@ TARGET_SR = 16000
 
 PARTIAL_INTERVAL_S = 1.0        # minimum time between two "partial" transcriptions
 MIN_AUDIO_FOR_PARTIAL_S = 1.0   # don't bother transcribing a near-empty buffer
-SILENCE_RMS_THRESHOLD = 0.01    # tune based on mic gain / noise floor
+SILENCE_RMS_THRESHOLD = 0.005    # tune based on mic gain / noise floor
 SILENCE_DURATION_S = 0.7        # silence needed to consider an utterance finished
 MAX_BUFFER_S = 30.0             # safety cap so a stuck session can't grow forever
 
@@ -53,6 +53,8 @@ class StreamSession:
 
         frame_duration = audio.shape[0] / self.sample_rate
         rms = float(np.sqrt(np.mean(np.square(audio)))) if audio.size else 0.0
+        
+        logger.info("frame rms=%.5f max=%.5f", rms, float(np.max(np.abs(audio))) if audio.size else 0.0)
 
         if rms < SILENCE_RMS_THRESHOLD:
             self._silence_s += frame_duration
@@ -88,7 +90,8 @@ class StreamSession:
         audio_16k = _resample(self._buffer, self.sample_rate, TARGET_SR)
 
         def _run() -> str:
-            segments, _ = model.transcribe(audio_16k, language=SOURCE_LANG, vad_filter=True)
+            segments, _ = model.transcribe(audio_16k, language=SOURCE_LANG, vad_filter=True,
+    vad_parameters=dict(threshold=0.2, min_silence_duration_ms=500))
             return " ".join(seg.text.strip() for seg in segments).strip()
 
         # Serialize model access: faster-whisper's WhisperModel is not
