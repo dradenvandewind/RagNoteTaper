@@ -2,6 +2,8 @@ import asyncio
 import time
 
 import numpy as np
+from scipy.signal import resample_poly
+from math import gcd
 
 from .config import SOURCE_LANG, logger
 from .model import model, model_lock
@@ -20,20 +22,28 @@ MIN_SPEECH_FRAMES = 3
 
 
 
-def _resample(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
-    """Lightweight linear-interpolation resampler.
+# def _resample(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
+#     """Lightweight linear-interpolation resampler.
 
-    Good enough for feeding speech into Whisper; if higher fidelity is needed,
-    swap this for scipy.signal.resample_poly.
-    """
+#     Good enough for feeding speech into Whisper; if higher fidelity is needed,
+#     swap this for scipy.signal.resample_poly.
+#     """
+#     if orig_sr == target_sr or audio.size == 0:
+#         return audio
+#     duration = audio.shape[0] / orig_sr
+#     target_len = max(1, int(round(duration * target_sr)))
+#     orig_idx = np.linspace(0, audio.shape[0] - 1, num=audio.shape[0])
+#     target_idx = np.linspace(0, audio.shape[0] - 1, num=target_len)
+#     return np.interp(target_idx, orig_idx, audio).astype(np.float32)
+
+
+def _resample(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
     if orig_sr == target_sr or audio.size == 0:
         return audio
-    duration = audio.shape[0] / orig_sr
-    target_len = max(1, int(round(duration * target_sr)))
-    orig_idx = np.linspace(0, audio.shape[0] - 1, num=audio.shape[0])
-    target_idx = np.linspace(0, audio.shape[0] - 1, num=target_len)
-    return np.interp(target_idx, orig_idx, audio).astype(np.float32)
-
+    g = gcd(orig_sr, target_sr)
+    up = target_sr // g
+    down = orig_sr // g
+    return resample_poly(audio, up, down).astype(np.float32)
 
 class StreamSession:
     """Per-connection streaming state.
