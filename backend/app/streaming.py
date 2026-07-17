@@ -64,14 +64,17 @@ class StreamSession:
         self._consecutive_speech_frames = 0
 
     def add_frame(self, pcm_int16: np.ndarray) -> None:
+        # 1. Conversion en float32
         audio = pcm_int16.astype(np.float32) / 32768.0
-        self._buffer = np.concatenate([self._buffer, audio])
-
-        frame_duration = audio.shape[0] / self.sample_rate
-        rms = float(np.sqrt(np.mean(np.square(audio)))) if audio.size else 0.0
         
-        logger.info("frame rms=%.5f max=%.5f", rms, float(np.max(np.abs(audio))) if audio.size else 0.0)
+        # 2. Resample IMMEDIATELY to 16000 Hz
+        audio_16k = _resample(audio, self.sample_rate, TARGET_SR)
+        self._buffer = np.concatenate([self._buffer, audio_16k])
 
+        # 3. Compute duration based on the resulting 16k stream
+        frame_duration = audio_16k.shape[0] / TARGET_SR
+        rms = float(np.sqrt(np.mean(np.square(audio_16k)))) if audio_16k.size else 0.0
+        
         if rms < SILENCE_RMS_THRESHOLD:
             self._silence_s += frame_duration
             self._consecutive_speech_frames = 0
@@ -80,15 +83,14 @@ class StreamSession:
             self._consecutive_speech_frames += 1
             if self._consecutive_speech_frames >= MIN_SPEECH_FRAMES:
                 self._has_speech = True
-        logger.info("silence_s=%.3f rms=%.5f threshold=%.5f", self._silence_s, rms, SILENCE_RMS_THRESHOLD)
 
-        max_samples = int(MAX_BUFFER_S * self.sample_rate)
+        # Max buffer safety (now based on 16kHz)
+        max_samples = int(MAX_BUFFER_S * TARGET_SR)
         if self._buffer.shape[0] > max_samples:
             self._buffer = self._buffer[-max_samples:]
-
     @property
     def buffer_duration_s(self) -> float:
-        return self._buffer.shape[0] / self.sample_rate
+        return self._buffer.shape[0] / TARGET_SR
 
     def should_emit_partial(self) -> bool:
         now = time.monotonic()
@@ -114,18 +116,19 @@ class StreamSession:
         self._has_speech = False
 
     async def _transcribe_current(self) -> str:
-        audio_16k = _resample(self._buffer, self.sample_rate, TARGET_SR)
-
+        # No need to resample here! It's already at 16k
         def _run() -> str:
-            segments, _ = model.transcribe(audio_16k, language=SOURCE_LANG, vad_filter=True,
-    vad_parameters=dict(threshold=0.2, min_silence_duration_ms=500))
+            segments, _ = model.transcribe(
+                self._buffer, 
+                language=SOURCE_LANG, 
+                vad_filter=True,
+                vad_parameters=dict(threshold=0.2, min_silence_duration_ms=500)
+            )
             return " ".join(seg.text.strip() for seg in segments).strip()
 
-        # Serialize model access: faster-whisper's WhisperModel is not
-        # guaranteed safe for concurrent inference calls from multiple threads.
         async with model_lock:
             return await asyncio.to_thread(_run)
-
+        
     # async def emit_partial(self) -> str:
     #     self._last_partial_at = time.monotonic()
     #     try:
@@ -133,23 +136,24 @@ class StreamSession:
     #     except Exception:
     #         logger.exception("Partial transcription failed")
     #         return ""
-    PARTIAL_WINDOW_S = 4.0  # ne regarder que les 4 dernières secondes pour un partial
+    PARTIAL_WINDOW_S = 4.0  # only look at the last 4 seconds for a partial
 
     async def emit_partial(self) -> str:
         self._last_partial_at = time.monotonic()
         try:
-            window_samples = int(PARTIAL_WINDOW_S * self.sample_rate)
+            # Découpage instantané dans le tableau déjà en 16kHz
+            window_samples = int(PARTIAL_WINDOW_S * TARGET_SR)
             audio_window = self._buffer[-window_samples:]
-            audio_16k = _resample(audio_window, self.sample_rate, TARGET_SR)
 
             def _run() -> str:
                 segments, _ = model.transcribe(
-                    audio_16k,
+                    audio_window,
                     language=SOURCE_LANG,
                     vad_filter=True,
-                     beam_size=1,
+                    beam_size=1,
                     condition_on_previous_text=False,
-                    vad_parameters=dict(threshold=0.2, min_silence_duration_ms=500))
+                    vad_parameters=dict(threshold=0.2, min_silence_duration_ms=500)
+                )
                 return " ".join(seg.text.strip() for seg in segments).strip()
 
             async with model_lock:
@@ -157,7 +161,7 @@ class StreamSession:
         except Exception:
             logger.exception("Partial transcription failed")
             return ""
-
+        
     async def emit_final(self) -> dict[str, str]:
         try:
             text_fr = await self._transcribe_current()
