@@ -131,8 +131,14 @@ startBtn.addEventListener('click', async () => {
     // Handshake: tell the server the native sample rate of this stream so it
     // can resample correctly before feeding audio to Whisper.
     ws.send(JSON.stringify({ sampleRate: audioCtx.sampleRate }));
+    let frameCount = 0;
+  setInterval(() => {
+    console.log(`Frames reçues cette seconde: ${frameCount}`);
+    frameCount = 0;
+  }, 1000);
 
     workletNode.port.onmessage = (event) => {
+      frameCount++;
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(event.data); // raw Int16 PCM ArrayBuffer
       }
