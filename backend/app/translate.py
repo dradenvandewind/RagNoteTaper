@@ -13,7 +13,11 @@ async def translate_text(text: str, target_lang: str = "English") -> str:
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
         resp = await client.post(
             f"{OLLAMA_URL}/api/generate",
-            json={"model": QWEN_MODEL, "prompt": prompt, "stream": False},
+            json={
+                "model": QWEN_MODEL,
+                "prompt": prompt,
+                "stream": True,
+                "keep_alive": "30m"},
         )
         resp.raise_for_status()
         return resp.json().get("response", "").strip()
