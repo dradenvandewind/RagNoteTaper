@@ -133,7 +133,7 @@ startBtn.addEventListener('click', async () => {
     ws.send(JSON.stringify({ sampleRate: audioCtx.sampleRate }));
     let frameCount = 0;
   setInterval(() => {
-    console.log(`Frames reçues cette seconde: ${frameCount}`);
+    console.log(`Frames received this second: ${frameCount}`);
     frameCount = 0;
   }, 1000);
 
