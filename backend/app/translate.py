@@ -16,7 +16,7 @@ async def translate_text(text: str, target_lang: str = "English") -> str:
             json={
                 "model": QWEN_MODEL,
                 "prompt": prompt,
-                "stream": True,
+                "stream": False,
                 "keep_alive": "30m"},
         )
         resp.raise_for_status()
