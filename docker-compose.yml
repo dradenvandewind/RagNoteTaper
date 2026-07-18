@@ -90,7 +90,7 @@ services:
     labels:
       collect_logs: "true" 
     logging:
-      driver: "json-file
+      driver: "json-file"
     ports:
       - "8000:8000"
     deploy:
