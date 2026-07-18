@@ -29,9 +29,16 @@
 <canvas id="meter" width="800" height="48"></canvas>
 </div>
 <div class="deck__controls">
-<button id="start-btn" class="btn btn--start">Start listening</button>
-<button id="stop-btn" class="btn btn--stop" disabled>Stop</button>
-<span class="deck__hint">5s chunks &middot; browser mic capture</span>
+  <button id="start-btn" class="btn btn--start">Start listening</button>
+  <button id="stop-btn" class="btn btn--stop" disabled>Stop</button>
+  
+  <button id="btn-resume" class="btn" style="background: #4fd1c5; color: #0b0d10;" onclick="lancerResume()">📋 Résumer la discussion</button>
+  
+  <span class="deck__hint">5s chunks &middot; browser mic capture</span>
+</div>
+<div id="container-resume" style="display: none; margin-top: 15px; padding: 15px; background-color: var(--panel); border: 1px solid var(--panel-line); border-left: 4px solid var(--fr); border-radius: 10px;">
+    <h4 style="margin-top: 0; font-family: var(--font-display); color: var(--fr);">Résume :</h4>
+    <p id="affichage-resume" style="white-space: pre-line; font-size: 14px; color: var(--ink); margin: 0;"></p>
 </div>
 </section>
 

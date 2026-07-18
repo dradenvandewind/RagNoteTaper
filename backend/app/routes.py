@@ -1,12 +1,15 @@
 import os
 
 import numpy as np
-from fastapi import APIRouter, File, UploadFile, WebSocket, WebSocketDisconnect
+import httpx
+from pydantic import BaseModel
+from fastapi import APIRouter, File, UploadFile, WebSocket, WebSocketDisconnect, HTTPException
 
 from .config import QWEN_MODEL, WHISPER_MODEL, logger
 from .model import DEVICE
 from .pipeline import process_audio_bytes
 from .streaming import StreamSession
+from .summarize import summarize_text
 
 router = APIRouter()
 
@@ -78,3 +81,22 @@ async def ws_transcribe(websocket: WebSocket):
         logger.info("WebSocket client disconnected")
     except Exception:
         logger.exception("Streaming session crashed unexpectedly")
+        
+class SummarizeRequest(BaseModel):
+    text: str
+
+@router.post("/api/summarize")
+async def api_summarize(req: SummarizeRequest):
+    """Route pour résumer le texte fourni par le client."""
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Le texte à résumer ne peut pas être vide")
+
+    try:
+        summary = await summarize_text(req.text)
+        return {"summary": summary}
+    except httpx.HTTPStatusError as e:
+        logger.error("Ollama a retourné une erreur lors du résumé : %s", e)
+        raise HTTPException(status_code=500, detail="Erreur du service de résumé")
+    except httpx.RequestError as e:
+        logger.error("Impossible de joindre Ollama pour le résumé : %s", e)
+        raise HTTPException(status_code=500, detail="Le service Ollama est indisponible")

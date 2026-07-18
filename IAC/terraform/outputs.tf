@@ -8,15 +8,6 @@ output "public_ip" {
   value       = aws_eip.rag_server.public_ip
 }
 
-output "api_url" {
-  description = "RAG API base URL"
-  value       = "http://${aws_eip.rag_server.public_ip}:${var.api_port}"
-}
-
-output "docs_url" {
-  description = "FastAPI Swagger UI"
-  value       = "http://${aws_eip.rag_server.public_ip}:${var.api_port}/docs"
-}
 
 output "grafana_url" {
   description = "grafana"
@@ -32,6 +23,11 @@ output "ssh_command" {
 output "ssh_redirect_localhost_command" {
   description = "SSH command to redirect localhost to the instance"
   value       = "ssh -L 8080:localhost:8080 ubuntu@${aws_eip.rag_server.public_ip}"
+}
+
+output "localhost_url" {
+  description = "localhost"
+  value       = "http://localhost:8080"
 }
 
 

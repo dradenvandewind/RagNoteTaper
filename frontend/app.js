@@ -202,3 +202,48 @@ stopBtn.addEventListener('click', () => {
   stopBtn.disabled = true;
   setStatus('Stopped', false);
 });
+
+async function lancerResume() {
+    const btn = document.getElementById('btn-resume');
+    const container = document.getElementById('container-resume');
+    const affichage = document.getElementById('affichage-resume');
+
+    // Correction de la cible : on récupère le texte accumulé dans la div "transcript"
+    const logsDiscussion = document.getElementById('transcript').innerText;
+
+    if (!logsDiscussion.trim()) {
+        alert("Aucun texte disponible à résumer.");
+        return;
+    }
+
+    // Changement d'état visuel (Loading)
+    btn.disabled = true;
+    btn.innerText = "⏳ Analyse en cours...";
+    container.style.display = "block";
+    affichage.innerText = "L'IA est en train de rédiger le résumé...";
+
+    try {
+        const response = await fetch('/api/summarize', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ text: logsDiscussion })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            affichage.innerText = data.summary;
+        } else {
+            affichage.innerText = "❌ Erreur : " + (data.detail || "Une erreur est survenue.");
+        }
+    } catch (error) {
+        console.error(error);
+        affichage.innerText = "❌ Impossible de contacter le serveur.";
+    } finally {
+        // Reset du bouton
+        btn.disabled = false;
+        btn.innerText = "📋 Résumer la discussion";
+    }
+}
